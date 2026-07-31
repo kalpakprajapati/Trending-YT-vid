@@ -1,7 +1,14 @@
-import { Composition } from 'remotion';
-import { RedditStory, redditStorySchema } from './compositions/RedditStory';
+import { Composition, getInputProps } from 'remotion';
+import { RedditStory, redditStorySchema } from './compositions/RedditStory.js';
 
 export const RemotionRoot: React.FC = () => {
+  const defaultProps: any = getInputProps();
+
+  const calculateDuration = (props: any) => {
+    if (!props || !props.scenes) return 1800; // default 60s
+    return props.scenes.reduce((acc: number, scene: any) => acc + (scene.durationFrames || 90), 0);
+  };
+
   return (
     <>
       <Composition
@@ -14,7 +21,7 @@ export const RemotionRoot: React.FC = () => {
         schema={redditStorySchema}
         calculateMetadata={({ props }) => {
           // Dynamically set the video length based on the sum of all scene durations!
-          const totalFrames = props.scenes.reduce((acc, scene) => acc + scene.durationFrames, 0);
+          const totalFrames = calculateDuration(props);
           return {
             durationInFrames: Math.max(totalFrames, 30), // Minimum 1 second
           };

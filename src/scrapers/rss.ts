@@ -23,6 +23,7 @@ const FEEDS: Record<string, string[]> = {
 };
 
 export class RssScraper {
+  readonly sourceName: string = 'rss';
   private parser: Parser;
 
   constructor() {

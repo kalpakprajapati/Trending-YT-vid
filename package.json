@@ -9,6 +9,9 @@
     "dev:world": "tsx src/index.ts run --source rss --category world --style cinematic",
     "dev:ai": "tsx src/index.ts run --source rss --category ai --style cinematic",
     "dev:science": "tsx src/index.ts run --source rss --category science --style cinematic",
+    "setup:flow": "tsx src/scripts/setup-flow.ts",
+    "render": "tsx src/index.ts render",
+    "fix-videos": "tsx src/scripts/fix-videos.ts",
     "build": "tsup src/index.ts --format esm --dts",
     "pipeline": "tsx src/pipeline.ts",
     "scrape": "tsx src/scripts/scrape.ts",
@@ -18,6 +21,7 @@
     "upload": "tsx src/scripts/upload.ts"
   },
   "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@google/genai": "latest",
     "@libsql/client": "^0.6.0",
     "@remotion/bundler": "^4.0.500",
@@ -29,6 +33,7 @@
     "fluent-ffmpeg": "^2.1.3",
     "googleapis": "^140.0.0",
     "msedge-tts": "^2.0.7",
+    "playwright": "^1.62.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "remotion": "^4.0.0",

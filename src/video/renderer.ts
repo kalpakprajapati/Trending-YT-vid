@@ -5,9 +5,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import { logger } from '../utils/logger.js';
 import { PollinationsImageGen } from '../images/pollinations.js';
+import { GoogleFlowVideoGen } from '../images/google-flow.js';
 import type { GeneratedScript } from '../ai/types.js';
 
-export type VideoStyle = 'gradient' | 'cinematic';
+export type VideoStyle = 'gradient' | 'cinematic' | 'flow' | 'manual';
 
 interface RenderOptions {
   projectId: string;
@@ -16,28 +17,30 @@ interface RenderOptions {
   audioDurationMs?: number;
   outputDir: string;
   style?: VideoStyle;
+  showSubtitles?: boolean;
 }
 
 export class VideoRenderer {
-  async renderVideo({ projectId, script, audioPath, audioDurationMs, outputDir, style = 'gradient' }: RenderOptions): Promise<string> {
-    logger.info(`[Video Renderer] Style: ${style.toUpperCase()} | Project: ${projectId}`);
+  async renderVideo({ projectId, script, audioPath, audioDurationMs, outputDir, style = 'gradient', showSubtitles = false }: RenderOptions): Promise<string> {
+    logger.info(`[Video Renderer] Style: ${style.toUpperCase()} | Subtitles: ${showSubtitles} | Project: ${projectId}`);
 
     const fps = 30;
 
     // Build scene list matching TTS audio order: hookLine -> scenes -> outro
-    const parts: Array<{ text: string; spokenText: string; emotion: string }> = [];
+    const parts: Array<{ text: string; spokenText: string; emotion: string; imagePrompt?: string }> = [];
     if (script.hookLine) {
-      parts.push({ text: script.hookLine, spokenText: script.hookLine, emotion: 'dramatic' });
+      parts.push({ text: script.hookLine, spokenText: script.hookLine, emotion: 'dramatic', imagePrompt: script.scenes[0]?.imagePrompt });
     }
     for (const scene of script.scenes) {
       parts.push({
         text: scene.onScreenText || scene.text,
         spokenText: scene.text,
         emotion: scene.emotion || 'neutral',
+        imagePrompt: scene.imagePrompt
       });
     }
     if (script.outro) {
-      parts.push({ text: script.outro, spokenText: script.outro, emotion: 'wholesome' });
+      parts.push({ text: script.outro, spokenText: script.outro, emotion: 'wholesome', imagePrompt: script.scenes[script.scenes.length - 1]?.imagePrompt });
     }
 
     // Calculate durations proportionally from actual audio duration
@@ -57,6 +60,7 @@ export class VideoRenderer {
       text: part.text,
       durationFrames: Math.max(Math.round((wordCounts[i] / totalWords) * totalDurationFrames), fps),
       emotion: part.emotion,
+      imagePrompt: part.imagePrompt,
     }));
 
     // Fix rounding
@@ -76,23 +80,26 @@ export class VideoRenderer {
       logger.info(`[Video Renderer] Audio copied to public dir`);
     }
 
-    // ── Generate scene images if cinematic style ──
+    // ── Generate scene assets if cinematic or flow style ──
     let sceneImageNames: string[] = [];
-    if (style === 'cinematic') {
-      logger.info(`[Video Renderer] 🎨 Generating ${allScenes.length} AI background images via Pollinations...`);
-      const imageGen = new PollinationsImageGen({ width: 1080, height: 1920 });
-      const imageDir = path.join(os.tmpdir(), `remotion-images-${projectId}`);
+    if (style === 'cinematic' || style === 'flow') {
+      logger.info(`[Video Renderer] 🎨 Generating ${allScenes.length} AI background assets...`);
+      const imageDir = path.join(os.tmpdir(), `remotion-assets-${projectId}`);
+      let imagePaths: string[] = [];
 
-      const imagePaths = await imageGen.generateForScenes(
-        allScenes.map(s => ({ text: s.text, emotion: s.emotion })),
-        imageDir,
-        script.title
-      );
+      if (style === 'flow') {
+        const flowGen = new GoogleFlowVideoGen();
+        imagePaths = await flowGen.generateForScenes(allScenes, imageDir, script.title);
+      } else {
+        const imageGen = new PollinationsImageGen({ width: 1080, height: 1920 });
+        imagePaths = await imageGen.generateForScenes(allScenes, imageDir, script.title);
+      }
 
-      // Copy generated images to public dir
+      // Copy generated images/videos to public dir
       for (let i = 0; i < imagePaths.length; i++) {
         if (imagePaths[i] && fs.existsSync(imagePaths[i])) {
-          const imgName = `scene_${i}.jpg`;
+          const ext = path.extname(imagePaths[i]);
+          const imgName = `scene_${i}${ext}`;
           fs.copyFileSync(imagePaths[i], path.join(publicDir, imgName));
           sceneImageNames.push(imgName);
         } else {
@@ -100,9 +107,33 @@ export class VideoRenderer {
         }
       }
 
-      // Cleanup temp image dir
+      // Cleanup temp dir
       fs.rmSync(imageDir, { recursive: true, force: true });
-      logger.info(`[Video Renderer] ✅ ${sceneImageNames.filter(Boolean).length}/${allScenes.length} images generated`);
+      logger.info(`[Video Renderer] ✅ ${sceneImageNames.filter(Boolean).length}/${allScenes.length} assets generated`);
+    } else if (style === 'manual') {
+      logger.info(`[Video Renderer] 🎨 Loading manual background assets...`);
+      // When manual, pipeline stops and asks user to put images/videos in output/[projectId]/images/
+      // outputDir is output/[projectId]/videos, so we go up one dir
+      const manualDir = path.join(outputDir, '..', 'images');
+      if (!fs.existsSync(manualDir)) fs.mkdirSync(manualDir, { recursive: true });
+
+      for (let i = 0; i < allScenes.length; i++) {
+        const mp4Path = path.join(manualDir, `scene_${i}.mp4`);
+        const jpgPath = path.join(manualDir, `scene_${i}.jpg`);
+        if (fs.existsSync(mp4Path)) {
+          const imgName = `scene_${i}.mp4`;
+          fs.copyFileSync(mp4Path, path.join(publicDir, imgName));
+          sceneImageNames.push(imgName);
+        } else if (fs.existsSync(jpgPath)) {
+          const imgName = `scene_${i}.jpg`;
+          fs.copyFileSync(jpgPath, path.join(publicDir, imgName));
+          sceneImageNames.push(imgName);
+        } else {
+          logger.warn(`[Video Renderer] ⚠️ Missing manual asset for scene ${i}. Expected scene_${i}.mp4 or scene_${i}.jpg`);
+          sceneImageNames.push('');
+        }
+      }
+      logger.info(`[Video Renderer] ✅ ${sceneImageNames.filter(Boolean).length}/${allScenes.length} assets loaded`);
     }
 
     // Log scene breakdown
@@ -118,6 +149,7 @@ export class VideoRenderer {
       audioPath: audioFileName,
       sceneImages: sceneImageNames,
       style,
+      showSubtitles,
     };
 
     const bundleLocation = await bundle({

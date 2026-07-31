@@ -11,7 +11,9 @@ export interface GeneratedScript {
   description: string;    // YouTube description
   tags: string[];         // YouTube tags
   hookLine: string;       // first 5 seconds hook
+  hookImagePrompt?: string; // Prompt for the hook video
   scenes: Scene[];
   outro: string;          // call to action
+  outroImagePrompt?: string; // Prompt for the outro video
   estimatedDurationSec: number;
 }

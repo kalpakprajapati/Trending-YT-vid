@@ -1,6 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { exec } from "node:child_process";
+import { promisify } from "node:util";
 import { eq } from "drizzle-orm";
+
+const execAsync = promisify(exec);
 import { nanoid } from "nanoid";
 
 import {
@@ -19,6 +23,7 @@ import type { Config } from "./config.js";
 import { logger } from "./utils/logger.js";
 
 import { VideoRenderer, VideoStyle } from "./video/renderer.js";
+import { FFmpegRenderer } from "./video/ffmpeg-renderer.js";
 
 export class Pipeline {
   private scriptGen: ScriptGenerator;
@@ -50,6 +55,7 @@ export class Pipeline {
   async processOne(
     content: ScrapedContent,
     style: VideoStyle = "gradient",
+    showSubtitles: boolean = false,
   ): Promise<any> {
     logger.info(
       `Processing single content: ${content.id} from ${content.source}`,
@@ -138,24 +144,57 @@ ${script.tags.join(", ")}
     await fs.mkdir(thumbnailDir, { recursive: true });
 
     let videoPath = "";
-    try {
-      videoPath = await this.videoRenderer.renderVideo({
-        projectId,
-        script,
-        audioPath,
-        audioDurationMs: ttsResult.totalDurationMs,
-        outputDir: videoDir,
-        style,
-      });
-    } catch (e: any) {
-      logger.error(`Failed to render video for ${projectId}: ${e.message}`);
+    if (style === "manual") {
+      logger.warn(`[Manual Mode] Stopping before video render for ${projectId}.`);
+      const promptsFile = path.join(projectDir, "google_flow_prompts.txt");
+      
+      const allParts: Array<{ text: string; prompt: string }> = [];
+      if (script.hookLine) {
+        allParts.push({ text: script.hookLine, prompt: script.hookImagePrompt || script.scenes[0]?.imagePrompt || script.hookLine });
+      }
+      for (const scene of script.scenes) {
+        allParts.push({ text: scene.text, prompt: scene.imagePrompt || scene.text });
+      }
+      if (script.outro) {
+        allParts.push({ text: script.outro, prompt: script.outroImagePrompt || script.scenes[script.scenes.length - 1]?.imagePrompt || script.outro });
+      }
+
+      const promptContent = allParts.map((s, i) => {
+        const words = s.text.split(/\s+/).length;
+        const estimatedSeconds = Math.max(Math.round(words / 2.5), 3); // 2.5 words/sec, min 3 seconds
+        return `--- scene_${i}.mp4 (Estimated Duration: ~${estimatedSeconds} seconds) ---\n${s.prompt}`;
+      }).join("\n\n");
+      
+      await fs.writeFile(promptsFile, promptContent);
+      logger.info(`Prompts saved to ${promptsFile}`);
+      
+      const manualImagesDir = path.join(projectDir, "images");
+      await fs.mkdir(manualImagesDir, { recursive: true });
+      logger.warn(`👇 WHAT TO DO NEXT 👇`);
+      logger.warn(`1. Generate your videos using the prompts in ${promptsFile}`);
+      logger.warn(`2. Save the videos as scene_0.mp4, scene_1.mp4, etc. into the folder: ${manualImagesDir}`);
+      logger.warn(`3. Once done, render the final video by running: npm run render ${projectId}`);
+    } else {
+      try {
+        videoPath = await this.videoRenderer.renderVideo({
+          projectId,
+          script,
+          audioPath,
+          audioDurationMs: ttsResult.totalDurationMs,
+          outputDir: videoDir,
+          style,
+          showSubtitles,
+        });
+      } catch (e: any) {
+        logger.error(`Failed to render video for ${projectId}: ${e.message}`);
+      }
     }
 
     // 5. Save project
     await db.insert(videoProjects).values({
       id: projectId,
       contentId: dbContentId,
-      status: "draft",
+      status: style === "manual" ? "pending_assets" : "draft",
       scriptJson: JSON.stringify(script),
       audioPath: audioPath,
       videoPath: videoPath || null,
@@ -175,7 +214,7 @@ ${script.tags.join(", ")}
     return {
       id: projectId,
       contentId: dbContentId,
-      status: "draft",
+      status: style === "manual" ? "pending_assets" : "draft",
       scriptPath: scriptPath,
       audioPath: audioPath,
       videoPath: videoPath,
@@ -188,6 +227,7 @@ ${script.tags.join(", ")}
     limit?: number;
     category?: string;
     style?: VideoStyle;
+    showSubtitles?: boolean;
   }): Promise<any[]> {
     logger.info("Running full pipeline...");
 
@@ -196,7 +236,7 @@ ${script.tags.join(", ")}
 
     for (const content of contents) {
       try {
-        const project = await this.processOne(content, options?.style);
+        const project = await this.processOne(content, options?.style, options?.showSubtitles);
         if (project) {
           projects.push(project);
         }
@@ -209,6 +249,74 @@ ${script.tags.join(", ")}
 
     logger.success(`Pipeline finished. Processed ${projects.length} projects.`);
     return projects;
+  }
+
+  async renderExisting(projectId: string, showSubtitles: boolean = false): Promise<string | null> {
+    logger.info(`Rendering existing project: ${projectId}`);
+    
+    // Get project from DB
+    const project = await db.select().from(videoProjects).where(eq(videoProjects.id, projectId)).get();
+    if (!project) {
+      logger.error(`Project ${projectId} not found in database.`);
+      return null;
+    }
+
+    if (!project.audioPath) {
+      logger.error(`Project ${projectId} does not have an audio file yet.`);
+      return null;
+    }
+
+    const script = JSON.parse(project.scriptJson as string);
+    const outputDir = path.resolve("output");
+    const projectDir = path.join(outputDir, projectId);
+    const videoDir = path.join(projectDir, "videos");
+    await fs.mkdir(videoDir, { recursive: true });
+
+    // Auto-fix videos so the user doesn't have to do it manually
+    logger.info(`[Auto-Fix] Checking and converting video codecs for Remotion compatibility...`);
+    try {
+      const { stdout } = await execAsync(`npm run fix-videos ${projectId}`);
+      if (stdout) logger.info(`[Auto-Fix Output]\n${stdout}`);
+    } catch (e: any) {
+      logger.warn(`[Auto-Fix] Issue while fixing videos (they might already be fixed): ${e.message}`);
+    }
+
+    let videoPath = "";
+    try {
+      if (!showSubtitles) {
+        logger.info(`[Pipeline] ⚡ Using Lightning-Fast FFmpeg Renderer since subtitles are OFF!`);
+        const ffmpegRenderer = new FFmpegRenderer();
+        videoPath = await ffmpegRenderer.renderVideo({
+          projectId,
+          script,
+          audioPath: project.audioPath as string,
+          audioDurationMs: 0,
+          outputDir: videoDir,
+          manualDir: path.join(projectDir, "images"),
+        });
+      } else {
+        logger.info(`[Pipeline] 🎨 Using Remotion Renderer...`);
+        videoPath = await this.videoRenderer.renderVideo({
+          projectId,
+          script,
+          audioPath: project.audioPath as string,
+          audioDurationMs: 0, // Fallback to word count calculation
+          outputDir: videoDir,
+          style: "manual",
+          showSubtitles,
+        });
+      }
+      
+      await db.update(videoProjects)
+        .set({ status: "draft", videoPath })
+        .where(eq(videoProjects.id, projectId));
+        
+      logger.success(`Successfully rendered manual video: ${videoPath}`);
+      return videoPath;
+    } catch (e: any) {
+      logger.error(`Failed to render video for ${projectId}: ${e.message}`);
+      return null;
+    }
   }
 
   // Individual steps (can be run standalone)

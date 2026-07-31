@@ -1,5 +1,5 @@
 import {
-  AbsoluteFill, Audio, Img, Sequence,
+  AbsoluteFill, Audio, Img, Video, Sequence,
   useCurrentFrame, useVideoConfig,
   interpolate, spring, interpolateColors, staticFile,
 } from 'remotion';
@@ -17,8 +17,10 @@ export const redditStorySchema = z.object({
   backgroundVideo: z.string().optional(),
   // NEW: per-scene AI-generated background images (filenames in public dir)
   sceneImages: z.array(z.string()).optional(),
-  // Style mode: 'gradient' (animated bg) or 'cinematic' (AI images)
-  style: z.enum(['gradient', 'cinematic']).optional(),
+  // Style mode: 'gradient' (animated bg) or 'cinematic' (AI images) or 'flow' (AI video) or 'manual' (Manual videos)
+  style: z.enum(['gradient', 'cinematic', 'flow', 'manual']).optional(),
+  // Whether to show subtitles on screen
+  showSubtitles: z.boolean().optional(),
 });
 
 export type RedditStoryProps = z.infer<typeof redditStorySchema>;
@@ -33,12 +35,12 @@ const ACCENT_COLORS: Record<string, string> = {
 // Main Composition
 // ═══════════════════════════════════════════════════════════════════════════
 export const RedditStory: React.FC<RedditStoryProps> = ({
-  title, scenes, audioPath, sceneImages, style = 'gradient',
+  title, scenes, audioPath, sceneImages, style = 'gradient', showSubtitles = false
 }) => {
   const { durationInFrames } = useVideoConfig();
   const frame = useCurrentFrame();
 
-  const useCinematic = style === 'cinematic' && sceneImages && sceneImages.length > 0;
+  const useCinematic = (style === 'cinematic' || style === 'flow' || style === 'manual') && sceneImages && sceneImages.length > 0;
 
   // Calculate scene start frames
   let cumulativeFrame = 0;
@@ -88,6 +90,7 @@ export const RedditStory: React.FC<RedditStoryProps> = ({
             duration={scene.durationFrames}
             sceneIndex={index}
             totalScenes={scenes.length}
+            showSubtitles={showSubtitles}
           />
         </Sequence>
       ))}
@@ -126,15 +129,29 @@ const KenBurnsImage: React.FC<{ src: string; duration: number; index: number }> 
 
   return (
     <AbsoluteFill style={{ opacity }}>
-      <Img
-        src={src}
-        style={{
-          width: '100%',
-          height: '100%',
-          objectFit: 'cover',
-          transform: `scale(${scale}) translateX(${panX}%)`,
-        }}
-      />
+      {src.endsWith('.mp4') ? (
+        <Video
+          src={src}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            transform: `scale(${scale}) translateX(${panX}%)`,
+          }}
+          muted
+          loop
+        />
+      ) : (
+        <Img
+          src={src}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            transform: `scale(${scale}) translateX(${panX}%)`,
+          }}
+        />
+      )}
     </AbsoluteFill>
   );
 };
@@ -223,18 +240,14 @@ const TitleCard: React.FC<{ title: string }> = ({ title }) => {
 // Scene Overlay (emoji + karaoke subtitles)
 // ═══════════════════════════════════════════════════════════════════════════
 const SceneOverlay: React.FC<{
-  text: string; emotion: string; duration: number; sceneIndex: number; totalScenes: number;
-}> = ({ text, emotion, duration, sceneIndex, totalScenes }) => (
+  text: string; emotion: string; duration: number; sceneIndex: number; totalScenes: number; showSubtitles?: boolean;
+}> = ({ text, emotion, duration, sceneIndex, totalScenes, showSubtitles }) => (
   <AbsoluteFill>
     {/* Removed EmojiReaction here as per user request */}
-    <div style={{
-      position: 'absolute', top: 280, right: 40,
-      color: 'rgba(255,255,255,0.4)', fontFamily: 'system-ui, sans-serif',
-      fontSize: '24px', fontWeight: 600,
-    }}>
-      {sceneIndex + 1}/{totalScenes}
-    </div>
-    <KaraokeSubtitle text={text} duration={duration} emotion={emotion} />
+    
+    {showSubtitles && (
+      <KaraokeSubtitle text={text} duration={duration} emotion={emotion} />
+    )}
   </AbsoluteFill>
 );
 
