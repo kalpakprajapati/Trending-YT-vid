@@ -5,6 +5,6 @@ export default defineConfig({
   out: './drizzle',
   dialect: 'sqlite',
   dbCredentials: {
-    url: './data/trending-yt.db',
+    url: 'file:./data/trending-yt.db',
   },
 });

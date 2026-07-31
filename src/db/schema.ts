@@ -14,6 +14,7 @@ export const scrapedContent = sqliteTable('scraped_content', {
   subreddit: text('subreddit'),
   scrapedAt: text('scraped_at').notNull(),
   usedAt: text('used_at'),
+  isProjectComplete: integer('is_project_complete', { mode: 'boolean' }).default(false),
 });
 
 /**

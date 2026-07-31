@@ -12,14 +12,17 @@ dotenv.config({ path: join(__dirname, '../.env') });
  * Zod schema for environment variables validation.
  */
 const envSchema = z.object({
-  REDDIT_CLIENT_ID: z.string().min(1),
-  REDDIT_CLIENT_SECRET: z.string().min(1),
-  REDDIT_USERNAME: z.string().min(1),
-  REDDIT_PASSWORD: z.string().min(1),
-  GEMINI_API_KEY: z.string().min(1),
-  YOUTUBE_CLIENT_ID: z.string().min(1),
-  YOUTUBE_CLIENT_SECRET: z.string().min(1),
-  YOUTUBE_REDIRECT_URI: z.string().url(),
+  REDDIT_CLIENT_ID: z.string().optional(),
+  REDDIT_CLIENT_SECRET: z.string().optional(),
+  REDDIT_USERNAME: z.string().optional(),
+  REDDIT_PASSWORD: z.string().optional(),
+  GEMINI_API_KEY: z.string().optional(),
+  YOUTUBE_CLIENT_ID: z.string().optional(),
+  YOUTUBE_CLIENT_SECRET: z.string().optional(),
+  YOUTUBE_REDIRECT_URI: z.string().url().optional(),
+  POLLINATION_API_KEY: z.string().optional(),
+  GEMINI_VOIDE_MODEL: z.string().optional(),
+  GEMINI_VOICE_NAME: z.string().optional()
 });
 
 /**

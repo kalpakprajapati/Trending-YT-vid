@@ -1,10 +1,10 @@
 import { Pipeline } from './pipeline.js';
-// Assume config is exported as default or named. We'll try a default/named pattern depending on how it's structured.
+import type { VideoStyle } from './video/renderer.js';
 // If it fails to compile later, we can adapt, but let's assume it's named export.
 import { config } from './config.js'; 
 import { logger } from './utils/logger.js';
 import { db } from './db/client.js';
-import { video_projects } from './db/schema.js';
+import { videoProjects } from './db/schema.js';
 import chalk from 'chalk';
 
 async function main() {
@@ -13,14 +13,22 @@ async function main() {
   
   // Parse simple options
   let limit = 5;
-  let subreddits: string[] | undefined;
+  let source = 'hackernews'; // Default source
+  let category: string | undefined;
+  let style: VideoStyle = 'gradient';
   
   for (let i = 1; i < args.length; i++) {
     if (args[i] === '--limit' && args[i+1]) {
       limit = parseInt(args[i+1], 10);
       i++;
-    } else if (args[i] === '--subreddits' && args[i+1]) {
-      subreddits = args[i+1].split(',').map(s => s.trim());
+    } else if (args[i] === '--source' && args[i+1]) {
+      source = args[i+1];
+      i++;
+    } else if (args[i] === '--category' && args[i+1]) {
+      category = args[i+1];
+      i++;
+    } else if (args[i] === '--style' && args[i+1]) {
+      style = args[i+1] as VideoStyle;
       i++;
     }
   }
@@ -31,7 +39,7 @@ async function main() {
     switch (command) {
       case 'scrape':
         logger.info(chalk.blue('Starting scrape command...'));
-        await pipeline.scrape({ limit, subreddits });
+        await pipeline.scrape({ source, limit, category });
         break;
       case 'generate-script':
         logger.warn(chalk.yellow('Standalone generate-script requires content input, which is best done via code or the full run command.'));
@@ -40,16 +48,17 @@ async function main() {
         logger.warn(chalk.yellow('Standalone generate-voice requires script input, which is best done via code or the full run command.'));
         break;
       case 'run':
-        logger.info(chalk.blue('Starting full pipeline run...'));
-        await pipeline.run({ limit, subreddits });
+        logger.info(chalk.blue('Running full automated pipeline...'));
+        logger.info(chalk.magenta(`Video style: ${style}`));
+        await pipeline.run({ source, limit, category, style });
         break;
       case 'list':
         logger.info(chalk.blue('Listing all projects...'));
-        const projects = await db.select().from(video_projects);
+        const projects = await db.select().from(videoProjects);
         console.table(projects.map(p => ({
           ID: p.id,
           Status: p.status,
-          Created: p.created_at
+          Created: p.createdAt
         })));
         break;
       case 'help':
@@ -58,15 +67,19 @@ async function main() {
 Usage: tsx src/index.ts <command> [options]
 
 Commands:
-  scrape              Scrape trending content from Reddit
-  generate-script     Generate scripts for scraped content
-  generate-voice      Generate voiceover for scripts
-  run                 Run full pipeline (scrape -> script -> voice)
+  scrape              Scrape trending content
+  run                 Run full pipeline (scrape -> script -> voice -> video)
   list                List all video projects and their status
 
 Options:
   --limit <n>         Max items to process (default: 5)
-  --subreddits <s>    Comma-separated subreddit list
+  --source <s>        Content source: hackernews, reddit (default: hackernews)
+  --style <s>         Video style: gradient (animated bg) or cinematic (AI images) (default: gradient)
+  --category <s>      Content category filter
+
+Examples:
+  npm run dev -- run --limit 1                          # Gradient style
+  npm run dev -- run --limit 1 --style cinematic        # AI image backgrounds
         `);
         break;
     }
