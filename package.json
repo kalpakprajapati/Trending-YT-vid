@@ -23,6 +23,7 @@
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@google/genai": "latest",
+    "@inquirer/prompts": "^8.5.2",
     "@libsql/client": "^0.6.0",
     "@remotion/bundler": "^4.0.500",
     "@remotion/cli": "^4.0.0",

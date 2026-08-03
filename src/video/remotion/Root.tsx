@@ -1,5 +1,5 @@
 import { Composition, getInputProps } from 'remotion';
-import { RedditStory, redditStorySchema } from './compositions/RedditStory.js';
+import { RedditStory, redditStorySchema } from './compositions/RedditStory';
 
 export const RemotionRoot: React.FC = () => {
   const defaultProps: any = getInputProps();

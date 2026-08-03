@@ -17,6 +17,7 @@ async function main() {
   let category: string | undefined;
   let style: VideoStyle = 'gradient';
   let showSubtitles = false;
+  let interactive = true; // Default to interactive selection
   
   for (let i = 1; i < args.length; i++) {
     if (args[i] === '--limit' && args[i+1]) {
@@ -39,6 +40,16 @@ async function main() {
       } else {
         showSubtitles = true; // flag present without explicit true/false value defaults to true
       }
+    } else if (args[i] === '--interactive') {
+      let nextArg = args[i+1];
+      if (nextArg === 'true' || nextArg === 'false') {
+        interactive = nextArg === 'true';
+        i++;
+      } else {
+        interactive = true;
+      }
+    } else if (args[i] === '--no-interactive') {
+      interactive = false;
     }
   }
   
@@ -60,7 +71,7 @@ async function main() {
         logger.info(chalk.blue('Running full automated pipeline...'));
         logger.info(chalk.magenta(`Video style: ${style}`));
         logger.info(chalk.magenta(`Subtitles: ${showSubtitles ? 'ON' : 'OFF'}`));
-        await pipeline.run({ source, limit, category, style, showSubtitles });
+        await pipeline.run({ source, limit, category, style, showSubtitles, interactive });
         break;
       case 'render':
         if (!args[1]) {
@@ -70,7 +81,7 @@ async function main() {
         const projectId = args[1];
         logger.info(chalk.blue(`Rendering existing project: ${projectId}`));
         logger.info(chalk.magenta(`Subtitles: ${showSubtitles ? 'ON' : 'OFF'}`));
-        await pipeline.renderExisting(projectId, showSubtitles);
+        await pipeline.renderExisting(projectId, showSubtitles, style);
         break;
       case 'list':
         logger.info(chalk.blue('Listing all projects...'));

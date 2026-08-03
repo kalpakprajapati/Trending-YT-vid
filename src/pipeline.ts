@@ -24,6 +24,8 @@ import { logger } from "./utils/logger.js";
 
 import { VideoRenderer, VideoStyle } from "./video/renderer.js";
 import { FFmpegRenderer } from "./video/ffmpeg-renderer.js";
+import { generateSrt } from "./utils/subtitles.js";
+import { checkbox } from '@inquirer/prompts';
 
 export class Pipeline {
   private scriptGen: ScriptGenerator;
@@ -143,6 +145,11 @@ ${script.tags.join(", ")}
     const thumbnailDir = path.join(projectDir, "thumbnails");
     await fs.mkdir(thumbnailDir, { recursive: true });
 
+    // Generate SRT subtitles
+    const srtPath = path.join(videoDir, `${projectId}.srt`);
+    await generateSrt(script, ttsResult.totalDurationMs, srtPath);
+    logger.info(`Generated SRT subtitles at ${srtPath}`);
+
     let videoPath = "";
     if (style === "manual") {
       logger.warn(`[Manual Mode] Stopping before video render for ${projectId}.`);
@@ -228,13 +235,53 @@ ${script.tags.join(", ")}
     category?: string;
     style?: VideoStyle;
     showSubtitles?: boolean;
+    interactive?: boolean;
   }): Promise<any[]> {
     logger.info("Running full pipeline...");
 
-    const contents = await this.scrape(options);
+    // Scrape more items if interactive so the user has options
+    const targetLimit = options?.limit || 5;
+    const fetchLimit = options?.interactive ? Math.max(10, targetLimit * 2) : targetLimit;
+    const scrapedContents = await this.scrape({ ...options, limit: fetchLimit });
+    
+    // Filter out already completed items
+    let freshContents: ScrapedContent[] = [];
+    for (const content of scrapedContents) {
+      const existing = await db.select().from(scrapedContent).where(eq(scrapedContent.url, content.url));
+      if (existing.length === 0 || !existing[0].isProjectComplete) {
+        freshContents.push(content);
+      }
+    }
+    
+    if (freshContents.length === 0) {
+      logger.info("No fresh content found to process.");
+      return [];
+    }
+
+    let contentsToProcess = freshContents.slice(0, targetLimit);
+
+    if (options?.interactive) {
+      const choices = freshContents.map((content, idx) => ({
+        name: `[${content.score} pts] ${content.title}`,
+        value: content,
+        checked: idx < targetLimit // Pre-check the first 'limit' items
+      }));
+
+      contentsToProcess = await checkbox({
+        message: `Select which stories to turn into videos (limit: ${targetLimit}):`,
+        choices: choices,
+        loop: false,
+      });
+
+      if (contentsToProcess.length === 0) {
+        logger.info("No stories selected. Exiting.");
+        return [];
+      }
+    }
+
     const projects = [];
 
-    for (const content of contents) {
+    for (const content of contentsToProcess) {
       try {
         const project = await this.processOne(content, options?.style, options?.showSubtitles);
         if (project) {
@@ -251,7 +298,7 @@ ${script.tags.join(", ")}
     return projects;
   }
 
-  async renderExisting(projectId: string, showSubtitles: boolean = false): Promise<string | null> {
+  async renderExisting(projectId: string, showSubtitles: boolean = false, style: VideoStyle = "gradient"): Promise<string | null> {
     logger.info(`Rendering existing project: ${projectId}`);
     
     // Get project from DB
@@ -283,7 +330,7 @@ ${script.tags.join(", ")}
 
     let videoPath = "";
     try {
-      if (!showSubtitles) {
+      if (style === "manual" && !showSubtitles) {
         logger.info(`[Pipeline] ⚡ Using Lightning-Fast FFmpeg Renderer since subtitles are OFF!`);
         const ffmpegRenderer = new FFmpegRenderer();
         videoPath = await ffmpegRenderer.renderVideo({
@@ -302,7 +349,7 @@ ${script.tags.join(", ")}
           audioPath: project.audioPath as string,
           audioDurationMs: 0, // Fallback to word count calculation
           outputDir: videoDir,
-          style: "manual",
+          style,
           showSubtitles,
         });
       }
