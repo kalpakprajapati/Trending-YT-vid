@@ -14,8 +14,9 @@ export class FFmpegRenderer {
     audioDurationMs: number;
     outputDir: string;
     manualDir: string;
+    format?: 'vertical' | 'horizontal';
   }): Promise<string> {
-    const { projectId, script, audioPath, audioDurationMs, outputDir, manualDir } = options;
+    const { projectId, script, audioPath, audioDurationMs, outputDir, manualDir, format = 'vertical' } = options;
     const finalVideoPath = path.join(outputDir, `${projectId}.mp4`);
     
     // Calculate durations
@@ -47,7 +48,8 @@ export class FFmpegRenderer {
       const durationSec = sceneDurations[i].toFixed(2);
 
       await new Promise((resolve, reject) => {
-        let command = exists ? ffmpeg(srcPath) : ffmpeg('color=c=black:s=1080x1920:r=30');
+        const resolution = format === 'horizontal' ? '1920x1080' : '1080x1920';
+        let command = exists ? ffmpeg(srcPath) : ffmpeg(`color=c=black:s=${resolution}:r=30`);
         
         if (exists) {
           command = command.inputOptions(['-stream_loop', '-1']);
@@ -63,8 +65,10 @@ export class FFmpegRenderer {
             '-preset veryfast', // Super fast encoding
             '-crf 23',
             '-pix_fmt yuv420p',
-            // Ensure resolution matches Shorts (1080x1920) and crop/scale
-            '-vf scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920'
+            // Ensure resolution matches format and crop/scale
+            format === 'horizontal' 
+              ? '-vf scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080'
+              : '-vf scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920'
           ])
           .save(sizedPath)
           .on('end', () => resolve(sizedPath))

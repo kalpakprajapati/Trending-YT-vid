@@ -18,11 +18,12 @@ interface RenderOptions {
   outputDir: string;
   style?: VideoStyle;
   showSubtitles?: boolean;
+  format?: 'vertical' | 'horizontal';
 }
 
 export class VideoRenderer {
-  async renderVideo({ projectId, script, audioPath, audioDurationMs, outputDir, style = 'gradient', showSubtitles = false }: RenderOptions): Promise<string> {
-    logger.info(`[Video Renderer] Style: ${style.toUpperCase()} | Subtitles: ${showSubtitles} | Project: ${projectId}`);
+  async renderVideo({ projectId, script, audioPath, audioDurationMs, outputDir, style = 'gradient', showSubtitles = false, format = 'vertical' }: RenderOptions): Promise<string> {
+    logger.info(`[Video Renderer] Style: ${style.toUpperCase()} | Subtitles: ${showSubtitles} | Format: ${format} | Project: ${projectId}`);
 
     const fps = 30;
 
@@ -91,7 +92,11 @@ export class VideoRenderer {
         const flowGen = new GoogleFlowVideoGen();
         imagePaths = await flowGen.generateForScenes(allScenes, imageDir, script.title);
       } else {
-        const imageGen = new PollinationsImageGen({ width: 1080, height: 1920 });
+        const isHorizontal = format === 'horizontal';
+        const imageGen = new PollinationsImageGen({ 
+          width: isHorizontal ? 1920 : 1080, 
+          height: isHorizontal ? 1080 : 1920 
+        });
         imagePaths = await imageGen.generateForScenes(allScenes, imageDir, script.title);
       }
 
@@ -150,6 +155,7 @@ export class VideoRenderer {
       sceneImages: sceneImageNames,
       style,
       showSubtitles,
+      format,
     };
 
     const bundleLocation = await bundle({

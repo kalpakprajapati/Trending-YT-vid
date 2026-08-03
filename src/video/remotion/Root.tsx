@@ -22,8 +22,11 @@ export const RemotionRoot: React.FC = () => {
         calculateMetadata={({ props }) => {
           // Dynamically set the video length based on the sum of all scene durations!
           const totalFrames = calculateDuration(props);
+          const isHorizontal = props.format === 'horizontal';
           return {
             durationInFrames: Math.max(totalFrames, 30), // Minimum 1 second
+            width: isHorizontal ? 1920 : 1080,
+            height: isHorizontal ? 1080 : 1920,
           };
         }}
         defaultProps={{

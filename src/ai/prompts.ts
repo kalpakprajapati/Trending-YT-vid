@@ -35,7 +35,7 @@ Instructions for Virality & Quality:
 1. TITLE: Must be extreme clickbait but true to the story. Use extreme emotion, curiosity gaps, and ALL CAPS for emphasis. Keep under 60 characters so it doesn't cut off on mobile. Include some emoji
 2. DESCRIPTION: Start with a hook. Include 3-5 relevant hashtags (#reddit #storytime). Make the algorithm love it by naturally weaving in keywords. Add a CTA to subscribe.
 3. TAGS: Include exactly 15 highly searched, relevant tags. Mix broad tags ("reddit stories") with niche tags.
-4. HOOK LINE: Must grab attention in the first 3 seconds (e.g. "What would you do if...").
+4. HOOK LINE & IMAGE: The hookLine MUST start mid-action to instantly grab attention (e.g. "What would you do if..."). The hookImagePrompt MUST be a highly visually striking, high-contrast, emotionally intense, or action-packed shot designed to stop the user scroll immediately.
 5. SCENES: Build up emotional peaks through the scenes using dramatic pauses.
 6. VIDEO PROMPT (imagePrompt): For each scene, write an EXTREMELY DETAILED cinematic VIDEO prompt (at least 3-4 sentences). You MUST describe:
    - Camera movement (e.g., slow pan left, push in, drone flyover, static close-up).

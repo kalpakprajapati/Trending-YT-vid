@@ -38,12 +38,12 @@ export class VoiceGenerator {
     // Charon = informative clear male voice, great for news/narration
     this.geminiVoice = options?.geminiVoice || 'Charon';
     this.edgeTtsVoice = options?.edgeTtsVoice || 'en-US-GuyNeural';
-    this.geminiVoiceModel = options?.geminiVoiceModel || 'gemini-2.5-flash-preview-tts';
+    this.geminiVoiceModel = options?.geminiVoiceModel || 'gemini-3.1-flash-tts-preview';
   }
 
   // ═══════════════════════════════════════════════════════════════════════
   // Public API
-  // ═══════════════════════════════════════════════════════════════════════
+  // ════
 
   /**
    * Generates a single audio file for an entire script.
@@ -96,7 +96,7 @@ export class VoiceGenerator {
     }
 
     const response = await this.geminiClient.models.generateContent({
-      model: 'gemini-2.5-flash-preview-tts',
+      model: this.geminiVoiceModel,
       contents: text,
       config: {
         responseModalities: ['AUDIO'],

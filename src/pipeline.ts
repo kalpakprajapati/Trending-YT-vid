@@ -58,6 +58,7 @@ export class Pipeline {
     content: ScrapedContent,
     style: VideoStyle = "gradient",
     showSubtitles: boolean = false,
+    format: 'vertical' | 'horizontal' = 'vertical'
   ): Promise<any> {
     logger.info(
       `Processing single content: ${content.id} from ${content.source}`,
@@ -169,7 +170,13 @@ ${script.tags.join(", ")}
       const promptContent = allParts.map((s, i) => {
         const words = s.text.split(/\s+/).length;
         const estimatedSeconds = Math.max(Math.round(words / 2.5), 3); // 2.5 words/sec, min 3 seconds
-        return `--- scene_${i}.mp4 (Estimated Duration: ~${estimatedSeconds} seconds) ---\n${s.prompt}`;
+        let promptWithFormat = s.prompt;
+        if (format === 'horizontal') {
+          promptWithFormat = promptWithFormat + ", horizontal 16:9 cinematic landscape";
+        } else {
+          promptWithFormat = promptWithFormat + ", vertical 9:16 cinematic portrait";
+        }
+        return `--- scene_${i}.mp4 (Estimated Duration: ~${estimatedSeconds} seconds) ---\n${promptWithFormat}`;
       }).join("\n\n");
       
       await fs.writeFile(promptsFile, promptContent);
@@ -191,6 +198,7 @@ ${script.tags.join(", ")}
           outputDir: videoDir,
           style,
           showSubtitles,
+          format,
         });
       } catch (e: any) {
         logger.error(`Failed to render video for ${projectId}: ${e.message}`);
@@ -236,6 +244,7 @@ ${script.tags.join(", ")}
     style?: VideoStyle;
     showSubtitles?: boolean;
     interactive?: boolean;
+    format?: 'vertical' | 'horizontal';
   }): Promise<any[]> {
     logger.info("Running full pipeline...");
 
@@ -283,7 +292,7 @@ ${script.tags.join(", ")}
 
     for (const content of contentsToProcess) {
       try {
-        const project = await this.processOne(content, options?.style, options?.showSubtitles);
+        const project = await this.processOne(content, options?.style, options?.showSubtitles, options?.format);
         if (project) {
           projects.push(project);
         }
@@ -298,7 +307,7 @@ ${script.tags.join(", ")}
     return projects;
   }
 
-  async renderExisting(projectId: string, showSubtitles: boolean = false, style: VideoStyle = "gradient"): Promise<string | null> {
+  async renderExisting(projectId: string, showSubtitles: boolean = false, style: VideoStyle = "gradient", format: 'vertical' | 'horizontal' = 'vertical'): Promise<string | null> {
     logger.info(`Rendering existing project: ${projectId}`);
     
     // Get project from DB
@@ -340,6 +349,7 @@ ${script.tags.join(", ")}
           audioDurationMs: 0,
           outputDir: videoDir,
           manualDir: path.join(projectDir, "images"),
+          format,
         });
       } else {
         logger.info(`[Pipeline] 🎨 Using Remotion Renderer...`);
@@ -351,6 +361,7 @@ ${script.tags.join(", ")}
           outputDir: videoDir,
           style,
           showSubtitles,
+          format,
         });
       }
       

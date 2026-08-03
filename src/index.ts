@@ -16,6 +16,7 @@ async function main() {
   let source = 'hackernews'; // Default source
   let category: string | undefined;
   let style: VideoStyle = 'gradient';
+  let format: 'vertical' | 'horizontal' = 'vertical';
   let showSubtitles = false;
   let interactive = true; // Default to interactive selection
   
@@ -31,6 +32,9 @@ async function main() {
       i++;
     } else if (args[i] === '--style' && args[i+1]) {
       style = args[i+1] as VideoStyle;
+      i++;
+    } else if (args[i] === '--format' && args[i+1]) {
+      format = args[i+1] as 'vertical' | 'horizontal';
       i++;
     } else if (args[i] === '--subtitles') {
       let nextArg = args[i+1];
@@ -70,8 +74,9 @@ async function main() {
       case 'run':
         logger.info(chalk.blue('Running full automated pipeline...'));
         logger.info(chalk.magenta(`Video style: ${style}`));
+        logger.info(chalk.magenta(`Video format: ${format}`));
         logger.info(chalk.magenta(`Subtitles: ${showSubtitles ? 'ON' : 'OFF'}`));
-        await pipeline.run({ source, limit, category, style, showSubtitles, interactive });
+        await pipeline.run({ source, limit, category, style, showSubtitles, interactive, format });
         break;
       case 'render':
         if (!args[1]) {
@@ -80,8 +85,9 @@ async function main() {
         }
         const projectId = args[1];
         logger.info(chalk.blue(`Rendering existing project: ${projectId}`));
+        logger.info(chalk.magenta(`Video format: ${format}`));
         logger.info(chalk.magenta(`Subtitles: ${showSubtitles ? 'ON' : 'OFF'}`));
-        await pipeline.renderExisting(projectId, showSubtitles, style);
+        await pipeline.renderExisting(projectId, showSubtitles, style, format);
         break;
       case 'list':
         logger.info(chalk.blue('Listing all projects...'));

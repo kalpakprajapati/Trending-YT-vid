@@ -21,6 +21,8 @@ export const redditStorySchema = z.object({
   style: z.enum(['gradient', 'cinematic', 'flow', 'manual']).optional(),
   // Whether to show subtitles on screen
   showSubtitles: z.boolean().optional(),
+  // Video format: vertical (9:16) or horizontal (16:9)
+  format: z.enum(['vertical', 'horizontal']).optional(),
 });
 
 export type RedditStoryProps = z.infer<typeof redditStorySchema>;
@@ -35,7 +37,7 @@ const ACCENT_COLORS: Record<string, string> = {
 // Main Composition
 // ═══════════════════════════════════════════════════════════════════════════
 export const RedditStory: React.FC<RedditStoryProps> = ({
-  title, scenes, audioPath, sceneImages, style = 'gradient', showSubtitles = false
+  title, scenes, audioPath, sceneImages, style = 'gradient', showSubtitles = false, format = 'vertical'
 }) => {
   const { durationInFrames } = useVideoConfig();
   const frame = useCurrentFrame();
