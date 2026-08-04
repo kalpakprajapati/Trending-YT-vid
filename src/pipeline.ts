@@ -118,6 +118,7 @@ ${script.title}
 
 Description:
 ${script.description}
+Source: ${content.url}
 
 Tags:
 ${script.tags.join(", ")}

@@ -35,20 +35,33 @@ export class ScriptGenerator {
     );
 
     return this.withRetry(async () => {
-      console.log("[Script Generator] Generating script...");
-      const response = await this.ai.models.generateContent({
+      console.log("[Script Generator] Starting critique session for script...");
+      
+      const interaction1 = await this.ai.interactions.create({
         model: this.MODEL,
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-        },
+        input: prompt,
       });
 
-      if (!response.text) {
+      console.log("[Script Generator] Critiquing and rewriting script...");
+      const critiquePrompt = `
+Analyze the script you just generated. 
+- Ensure the hook starts exactly mid-action. 
+- Ensure the pacing is extremely fast and engaging.
+- Make any necessary improvements to maximize viewer retention.
+
+Return the final, improved script using the EXACT SAME JSON structure as originally requested. Do not include any other text, only the JSON.
+      `;
+      const interaction2 = await this.ai.interactions.create({
+        model: this.MODEL,
+        input: critiquePrompt,
+        previous_interaction_id: interaction1.id,
+      });
+
+      if (!interaction2.output_text) {
         throw new Error("No response text received from Gemini API");
       }
 
-      const script = JSON.parse(response.text) as GeneratedScript;
+      const script = JSON.parse(interaction2.output_text) as GeneratedScript;
 
       // Basic validation
       if (
